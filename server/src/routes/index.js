@@ -24,3 +24,4 @@ router.use('/ratings', ratingRoutes);
 router.use('/store-owner', storeOwnerRoutes);
 
 module.exports = router;
+

@@ -22,3 +22,4 @@ router.get('/profile', authenticate, getProfile);
 router.put('/change-password', authenticate, changePasswordValidation, changePassword);
 
 module.exports = router;
+

@@ -245,3 +245,4 @@ npm test
 ## 🛡️ License
 
 This project was developed for the Roxiler Store Rating Assessment. All rights reserved.
+

@@ -22,3 +22,4 @@ router.get('/', optionalAuth, getStores);
 router.get('/:id', optionalAuth, getStoreById);
 
 module.exports = router;
+

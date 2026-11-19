@@ -1,8 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
+import { useAuth } from '../../context/AuthContext';
+import { useToast } from '../../context/ToastContext';
 import { storeOwnerApi } from '../../services/api';
 import { StatCard } from '../../components/common/StatCard';
 import { StarRating } from '../../components/common/StarRating';
+import { ConfirmDialog } from '../../components/common/ConfirmDialog';
 import { LoadingSpinner, TableSkeleton } from '../../components/common/LoadingSpinner';
 import {
   Store,
@@ -11,57 +14,110 @@ import {
   TrendingUp,
   MapPin,
   Mail,
-  ArrowRight,
-  AlertCircle
+  Search,
+  Filter,
+  ArrowUpDown,
+  ChevronLeft,
+  ChevronRight,
+  KeyRound,
+  LogOut,
+  AlertCircle,
+  Sparkles
 } from 'lucide-react';
 
 export const StoreOwnerDashboard = () => {
+  const { user, logout } = useAuth();
+  const { showToast } = useToast();
+
   const [data, setData] = useState(null);
-  const [recentRatings, setRecentRatings] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
 
-  const fetchDashboardData = async () => {
+  // Customer Ratings Table State
+  const [ratings, setRatings] = useState([]);
+  const [ratingsLoading, setRatingsLoading] = useState(false);
+  const [search, setSearch] = useState('');
+  const [ratingFilter, setRatingFilter] = useState('');
+  const [sortBy, setSortBy] = useState('created_at');
+  const [sortOrder, setSortOrder] = useState('DESC');
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalRatingsCount, setTotalRatingsCount] = useState(0);
+
+  // Logout dialog
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+
+  // Fetch Dashboard Summary Stats
+  const fetchDashboardStats = async () => {
     try {
-      setLoading(true);
-      const [dashRes, ratingsRes] = await Promise.all([
-        storeOwnerApi.getDashboardStats(),
-        storeOwnerApi.getStoreRatings({ limit: 5, sortBy: 'created_at', sortOrder: 'DESC' })
-      ]);
-
-      if (dashRes.data.success) {
-        setData(dashRes.data.data);
-      }
-      if (ratingsRes.data.success) {
-        setRecentRatings(ratingsRes.data.data.ratings);
+      const res = await storeOwnerApi.getDashboardStats();
+      if (res.data.success) {
+        setData(res.data.data);
       }
     } catch (err) {
-      setError(err.response?.data?.message || 'Failed to load store owner dashboard.');
+      console.error(err);
+    }
+  };
+
+  // Fetch Customer Ratings Table
+  const fetchRatings = async () => {
+    try {
+      setRatingsLoading(true);
+      const res = await storeOwnerApi.getStoreRatings({
+        search,
+        rating: ratingFilter,
+        sortBy,
+        sortOrder,
+        page,
+        limit: 10
+      });
+
+      if (res.data.success) {
+        setRatings(res.data.data.ratings);
+        setTotalPages(res.data.data.pagination.totalPages);
+        setTotalRatingsCount(res.data.data.pagination.total);
+      }
+    } catch (err) {
+      console.error(err);
     } finally {
-      setLoading(false);
+      setRatingsLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchDashboardData();
+    setLoading(true);
+    Promise.all([fetchDashboardStats(), fetchRatings()]).finally(() => {
+      setLoading(false);
+    });
   }, []);
 
-  if (loading) {
-    return <LoadingSpinner text="Loading Store Owner Dashboard..." />;
-  }
+  useEffect(() => {
+    fetchRatings();
+  }, [page, ratingFilter, sortBy, sortOrder]);
 
-  if (error) {
-    return (
-      <div className="p-6 rounded-2xl bg-rose-50 border border-rose-200 text-rose-700">
-        <p className="font-semibold">{error}</p>
-        <button
-          onClick={fetchDashboardData}
-          className="mt-3 px-4 py-2 bg-rose-600 text-white rounded-lg text-xs font-semibold hover:bg-rose-700"
-        >
-          Try Again
-        </button>
-      </div>
-    );
+  const handleSearchSubmit = (e) => {
+    e.preventDefault();
+    setPage(1);
+    fetchRatings();
+  };
+
+  const handleSort = (column) => {
+    if (sortBy === column) {
+      setSortOrder(sortOrder === 'ASC' ? 'DESC' : 'ASC');
+    } else {
+      setSortBy(column);
+      setSortOrder('ASC');
+    }
+    setPage(1);
+  };
+
+  const handleLogout = () => {
+    setShowLogoutConfirm(false);
+    showToast('Logged out successfully', 'success');
+    logout();
+  };
+
+  if (loading) {
+    return <LoadingSpinner text="Loading Store Business Analytics..." />;
   }
 
   const hasStore = data?.hasStore;
@@ -73,44 +129,67 @@ export const StoreOwnerDashboard = () => {
   return (
     <div className="space-y-8">
       {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold text-slate-900 tracking-tight flex items-center gap-2.5">
-          <Store className="w-6 h-6 text-indigo-600" />
-          <span>Store Owner Portal</span>
-        </h1>
-        <p className="text-sm text-slate-500 mt-1">
-          Monitor your store performance, review customer feedback, and analyze ratings
-        </p>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <div className="flex items-center gap-2 text-indigo-600 text-xs font-semibold uppercase tracking-wider mb-1">
+            <Sparkles className="w-4 h-4" />
+            <span>Store Performance Analytics</span>
+          </div>
+          <h1 className="text-2xl sm:text-3xl font-extrabold text-[#172033] tracking-tight">
+            Store Owner Dashboard
+          </h1>
+          <p className="text-sm text-[#64748B] mt-0.5">
+            Monitor overall customer feedback, ratings trends, and reviewer details
+          </p>
+        </div>
+
+        {/* Quick action buttons: Change Password & Logout */}
+        <div className="flex items-center gap-2.5">
+          <Link
+            to="/change-password"
+            className="inline-flex items-center gap-2 px-3.5 py-2.5 rounded-xl text-xs font-semibold text-[#172033] bg-white hover:bg-slate-50 border border-[#E2E8F0] shadow-subtle transition-colors"
+          >
+            <KeyRound className="w-4 h-4 text-slate-500" />
+            <span>Change Password</span>
+          </Link>
+          <button
+            onClick={() => setShowLogoutConfirm(true)}
+            className="inline-flex items-center gap-2 px-3.5 py-2.5 rounded-xl text-xs font-semibold text-red-600 bg-red-50 hover:bg-red-100 border border-red-200 transition-colors"
+          >
+            <LogOut className="w-4 h-4" />
+            <span>Logout</span>
+          </button>
+        </div>
       </div>
 
       {!hasStore ? (
-        <div className="bg-white rounded-2xl p-12 border border-slate-200 text-center max-w-xl mx-auto">
+        <div className="bg-white rounded-2xl p-12 border border-[#E2E8F0] shadow-card text-center max-w-xl mx-auto">
           <AlertCircle className="w-12 h-12 text-amber-500 mx-auto mb-3" />
-          <h3 className="text-base font-bold text-slate-800">
+          <h3 className="text-base font-bold text-[#172033]">
             No Store Assigned Yet
           </h3>
-          <p className="text-sm text-slate-500 mt-1.5 leading-relaxed">
-            Your account is registered as a Store Owner, but no store has been assigned to you yet.
+          <p className="text-sm text-[#64748B] mt-1.5 leading-relaxed">
+            Your account is registered as a Store Owner, but no commercial store has been assigned to you.
             Please contact the System Administrator to assign your store location.
           </p>
         </div>
       ) : (
         <>
-          {/* Store Overview Banner */}
-          <div className="bg-white rounded-2xl p-6 border border-slate-200/80 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-6">
+          {/* Store Overview Card */}
+          <div className="bg-white rounded-2xl p-6 border border-[#E2E8F0] shadow-card flex flex-col md:flex-row md:items-center justify-between gap-6">
             <div>
-              <div className="flex items-center gap-2 mb-1">
-                <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                  Active Store
+              <div className="flex items-center gap-2 mb-1.5">
+                <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-green-50 text-green-700 border border-green-200">
+                  Active Commercial Store
                 </span>
-                <span className="text-xs text-slate-400">
-                  ID: #{store.id}
+                <span className="text-xs text-[#64748B]">
+                  Store ID: #{store.id}
                 </span>
               </div>
-              <h2 className="text-2xl font-bold text-slate-900 tracking-tight">
+              <h2 className="text-2xl font-extrabold text-[#172033] tracking-tight">
                 {store.name}
               </h2>
-              <div className="mt-2 flex flex-wrap items-center gap-4 text-xs text-slate-500">
+              <div className="mt-2.5 flex flex-wrap items-center gap-4 text-xs text-[#64748B]">
                 <div className="flex items-center gap-1.5">
                   <MapPin className="w-4 h-4 text-slate-400" />
                   <span>{store.address}</span>
@@ -122,10 +201,10 @@ export const StoreOwnerDashboard = () => {
               </div>
             </div>
 
-            <div className="bg-indigo-50/70 border border-indigo-100 p-4 rounded-xl flex items-center gap-4 shrink-0">
+            <div className="bg-indigo-50/80 border border-indigo-100 p-4 rounded-2xl flex items-center gap-4 shrink-0 shadow-subtle">
               <div className="text-right">
-                <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                  Overall Rating
+                <p className="text-[11px] font-bold text-[#64748B] uppercase tracking-wider">
+                  Store Score
                 </p>
                 <p className="text-2xl font-black text-indigo-700">
                   {stats?.averageRating ? Number(stats.averageRating).toFixed(1) : '0.0'}
@@ -138,16 +217,16 @@ export const StoreOwnerDashboard = () => {
           {/* Metric Cards */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
             <StatCard
-              title="Average Rating"
+              title="Average Store Rating"
               value={`${stats?.averageRating ? Number(stats.averageRating).toFixed(1) : '0.0'} / 5`}
-              subtitle="Customer satisfaction index"
+              subtitle="Calculated customer score"
               icon={TrendingUp}
               color="indigo"
             />
             <StatCard
-              title="Total Reviews"
+              title="Total Submitted Ratings"
               value={total}
-              subtitle="Ratings submitted by customers"
+              subtitle="Total verified customer evaluations"
               icon={Users}
               color="emerald"
             />
@@ -160,87 +239,200 @@ export const StoreOwnerDashboard = () => {
             />
           </div>
 
-          {/* Rating Breakdown & Recent Reviews */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* Rating Breakdown Bars */}
-            <div className="bg-white rounded-2xl p-6 border border-slate-200/80 shadow-sm flex flex-col justify-between">
+          {/* Rating Distribution Breakdown */}
+          <div className="bg-white rounded-2xl p-6 border border-[#E2E8F0] shadow-card">
+            <h3 className="text-base font-bold text-[#172033] mb-4">
+              Rating Distribution Breakdown
+            </h3>
+            <div className="grid grid-cols-1 sm:grid-cols-5 gap-4">
+              {[5, 4, 3, 2, 1].map((stars) => {
+                const count = distribution[stars] || 0;
+                const percentage = total > 0 ? Math.round((count / total) * 100) : 0;
+                return (
+                  <div key={stars} className="p-3.5 rounded-xl bg-slate-50 border border-[#E2E8F0] flex flex-col justify-between">
+                    <div className="flex items-center justify-between text-xs font-semibold text-[#172033] mb-2">
+                      <span className="flex items-center gap-1">
+                        {stars} <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-500" />
+                      </span>
+                      <span className="text-[#64748B]">{count}</span>
+                    </div>
+                    <div className="h-2 rounded-full bg-slate-200 overflow-hidden mb-1.5">
+                      <div
+                        className="h-full bg-amber-400 rounded-full transition-all"
+                        style={{ width: `${percentage}%` }}
+                      />
+                    </div>
+                    <span className="text-[11px] text-[#64748B] text-right font-medium">{percentage}%</span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Customer Ratings Table Section */}
+          <div className="bg-white rounded-2xl border border-[#E2E8F0] shadow-card overflow-hidden">
+            <div className="p-6 border-b border-[#E2E8F0] flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
               <div>
-                <h3 className="text-base font-bold text-slate-800 mb-4">
-                  Rating Distribution
+                <h3 className="text-base font-bold text-[#172033]">
+                  Customer Ratings & Feedback
                 </h3>
-                <div className="space-y-3">
-                  {[5, 4, 3, 2, 1].map((stars) => {
-                    const count = distribution[stars] || 0;
-                    const percentage = total > 0 ? Math.round((count / total) * 100) : 0;
-                    return (
-                      <div key={stars} className="flex items-center gap-3 text-xs">
-                        <span className="w-12 font-semibold text-slate-700 flex items-center gap-1 shrink-0">
-                          {stars} <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
-                        </span>
-                        <div className="flex-1 h-2 rounded-full bg-slate-100 overflow-hidden">
-                          <div
-                            className="h-full bg-amber-400 rounded-full transition-all"
-                            style={{ width: `${percentage}%` }}
-                          />
-                        </div>
-                        <span className="w-10 text-right text-slate-500 font-medium">
-                          {count}
-                        </span>
-                      </div>
-                    );
-                  })}
-                </div>
+                <p className="text-xs text-[#64748B] mt-0.5">
+                  Full list of verified customers who rated your store
+                </p>
               </div>
 
-              <div className="mt-6 pt-5 border-t border-slate-100 text-xs text-slate-500">
-                Calculated from all {total} verified user ratings
+              {/* Search & Filter */}
+              <div className="flex flex-col sm:flex-row items-center gap-2.5">
+                <form onSubmit={handleSearchSubmit} className="relative w-full sm:w-64">
+                  <Search className="w-4 h-4 absolute left-3 top-2.5 text-slate-400" />
+                  <input
+                    type="text"
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    placeholder="Search customer name or email..."
+                    className="w-full pl-9 pr-3 py-1.5 bg-slate-50 border border-[#E2E8F0] rounded-xl text-xs text-[#172033] focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 focus:bg-white"
+                  />
+                </form>
+
+                <div className="flex items-center gap-1.5 w-full sm:w-auto justify-end">
+                  <Filter className="w-3.5 h-3.5 text-slate-400" />
+                  <select
+                    value={ratingFilter}
+                    onChange={(e) => {
+                      setRatingFilter(e.target.value);
+                      setPage(1);
+                    }}
+                    className="py-1.5 px-2.5 bg-slate-50 border border-[#E2E8F0] rounded-xl text-xs text-[#172033] focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  >
+                    <option value="">All Stars</option>
+                    <option value="5">5 Stars</option>
+                    <option value="4">4 Stars</option>
+                    <option value="3">3 Stars</option>
+                    <option value="2">2 Stars</option>
+                    <option value="1">1 Star</option>
+                  </select>
+                </div>
               </div>
             </div>
 
-            {/* Recent Customers Who Rated */}
-            <div className="lg:col-span-2 bg-white rounded-2xl p-6 border border-slate-200/80 shadow-sm">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-base font-bold text-slate-800">
-                  Recent Customer Ratings
-                </h3>
-                <Link
-                  to="/store-owner/ratings"
-                  className="text-xs font-semibold text-indigo-600 hover:text-indigo-700 flex items-center gap-1"
-                >
-                  <span>View all raters</span>
-                  <ArrowRight className="w-3.5 h-3.5" />
-                </Link>
-              </div>
-
-              {recentRatings.length === 0 ? (
-                <div className="py-12 text-center text-slate-400 text-sm">
-                  No customers have rated your store yet.
-                </div>
-              ) : (
-                <div className="divide-y divide-slate-100">
-                  {recentRatings.map((r) => (
-                    <div key={r.id} className="py-3 flex items-center justify-between gap-4">
-                      <div>
-                        <p className="font-semibold text-slate-800 text-sm">
+            {/* Table */}
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-sm text-[#64748B]">
+                <thead className="bg-slate-50 text-xs font-semibold text-[#64748B] uppercase tracking-wider border-b border-[#E2E8F0]">
+                  <tr>
+                    <th
+                      onClick={() => handleSort('name')}
+                      className="px-6 py-3.5 cursor-pointer hover:text-[#172033] select-none"
+                    >
+                      <div className="flex items-center gap-1.5">
+                        <span>Customer Name</span>
+                        <ArrowUpDown className="w-3.5 h-3.5" />
+                      </div>
+                    </th>
+                    <th
+                      onClick={() => handleSort('email')}
+                      className="px-6 py-3.5 cursor-pointer hover:text-[#172033] select-none"
+                    >
+                      <div className="flex items-center gap-1.5">
+                        <span>Email Address</span>
+                        <ArrowUpDown className="w-3.5 h-3.5" />
+                      </div>
+                    </th>
+                    <th
+                      onClick={() => handleSort('rating')}
+                      className="px-6 py-3.5 cursor-pointer hover:text-[#172033] select-none"
+                    >
+                      <div className="flex items-center gap-1.5">
+                        <span>Rating Submitted</span>
+                        <ArrowUpDown className="w-3.5 h-3.5" />
+                      </div>
+                    </th>
+                    <th
+                      onClick={() => handleSort('created_at')}
+                      className="px-6 py-3.5 cursor-pointer hover:text-[#172033] select-none"
+                    >
+                      <div className="flex items-center gap-1.5">
+                        <span>Submission Date</span>
+                        <ArrowUpDown className="w-3.5 h-3.5" />
+                      </div>
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {ratingsLoading ? (
+                    <tr>
+                      <td colSpan="4">
+                        <TableSkeleton rows={4} cols={4} />
+                      </td>
+                    </tr>
+                  ) : ratings.length === 0 ? (
+                    <tr>
+                      <td colSpan="4" className="px-6 py-12 text-center text-[#64748B]">
+                        No customer ratings found.
+                      </td>
+                    </tr>
+                  ) : (
+                    ratings.map((r) => (
+                      <tr key={r.id} className="hover:bg-slate-50/70 transition-colors">
+                        <td className="px-6 py-4 font-semibold text-[#172033]">
                           {r.user_name}
-                        </p>
-                        <p className="text-xs text-slate-400">{r.user_email}</p>
-                      </div>
-
-                      <div className="flex flex-col items-end">
-                        <StarRating rating={r.rating} size="sm" />
-                        <span className="text-[10px] text-slate-400 mt-1">
+                        </td>
+                        <td className="px-6 py-4 text-[#64748B]">
+                          {r.user_email}
+                        </td>
+                        <td className="px-6 py-4">
+                          <StarRating rating={r.rating} showScore={true} size="sm" />
+                        </td>
+                        <td className="px-6 py-4 text-[#64748B] text-xs">
                           {new Date(r.created_at).toLocaleDateString()}
-                        </span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Pagination */}
+            <div className="px-6 py-3.5 border-t border-[#E2E8F0] flex items-center justify-between text-xs text-[#64748B]">
+              <div>
+                Showing <span className="font-semibold text-[#172033]">{ratings.length}</span> of{' '}
+                <span className="font-semibold text-[#172033]">{totalRatingsCount}</span> ratings
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  disabled={page <= 1}
+                  onClick={() => setPage((p) => p - 1)}
+                  className="p-1.5 rounded-lg border border-[#E2E8F0] disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-50 text-[#64748B]"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </button>
+                <span className="font-medium text-[#172033]">
+                  Page {page} of {totalPages || 1}
+                </span>
+                <button
+                  disabled={page >= totalPages}
+                  onClick={() => setPage((p) => p + 1)}
+                  className="p-1.5 rounded-lg border border-[#E2E8F0] disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-50 text-[#64748B]"
+                >
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+              </div>
             </div>
           </div>
         </>
       )}
+
+      {/* Logout Confirmation Dialog */}
+      <ConfirmDialog
+        isOpen={showLogoutConfirm}
+        onClose={() => setShowLogoutConfirm(false)}
+        onConfirm={handleLogout}
+        title="Confirm Logout"
+        message="Are you sure you want to log out of the Store Owner portal?"
+        confirmText="Log Out"
+        isDanger={true}
+      />
     </div>
   );
 };

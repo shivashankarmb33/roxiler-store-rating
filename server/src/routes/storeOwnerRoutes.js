@@ -13,3 +13,4 @@ router.get('/dashboard', getStoreOwnerDashboard);
 router.get('/ratings', getStoreRatings);
 
 module.exports = router;
+

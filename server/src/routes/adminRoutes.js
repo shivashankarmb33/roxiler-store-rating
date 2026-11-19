@@ -34,3 +34,4 @@ router.get('/stores/:id', getStoreDetails);
 router.get('/store-owners', getStoreOwnersList);
 
 module.exports = router;
+

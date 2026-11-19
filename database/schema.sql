@@ -68,3 +68,4 @@ CREATE TABLE IF NOT EXISTS ratings (
   INDEX idx_ratings_user_id (user_id),
   INDEX idx_ratings_rating (rating)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+

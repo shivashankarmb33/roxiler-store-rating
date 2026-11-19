@@ -153,3 +153,4 @@ module.exports = {
   createStoreValidation,
   ratingValidation
 };
+

@@ -16,3 +16,4 @@ router.put('/:storeId', modifyRating);
 router.get('/my-ratings', getMyRatings);
 
 module.exports = router;
+

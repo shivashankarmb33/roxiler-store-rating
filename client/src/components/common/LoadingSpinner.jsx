@@ -22,3 +22,4 @@ export const TableSkeleton = ({ rows = 5, cols = 4 }) => {
     </div>
   );
 };
+

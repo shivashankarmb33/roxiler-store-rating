@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { adminApi } from '../../services/api';
 import { RoleBadge } from '../../components/common/Badge';
 import { StarRating } from '../../components/common/StarRating';
 import { Modal } from '../../components/common/Modal';
 import { LoadingSpinner, TableSkeleton } from '../../components/common/LoadingSpinner';
+import { useToast } from '../../context/ToastContext';
 import {
   Users,
   Search,
@@ -13,12 +15,14 @@ import {
   ChevronLeft,
   ChevronRight,
   Eye,
-  CheckCircle2,
-  XCircle,
   AlertCircle
 } from 'lucide-react';
 
 export const UserManagementPage = () => {
+  const { showToast } = useToast();
+  const location = useLocation();
+  const navigate = useNavigate();
+
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [pagination, setPagination] = useState({ page: 1, limit: 10, total: 0, totalPages: 1 });
@@ -45,7 +49,13 @@ export const UserManagementPage = () => {
   });
   const [formError, setFormError] = useState('');
   const [formLoading, setFormLoading] = useState(false);
-  const [successMessage, setSuccessMessage] = useState('');
+
+  // Open create modal if URL has ?action=new
+  useEffect(() => {
+    if (location.search.includes('action=new')) {
+      setIsCreateOpen(true);
+    }
+  }, [location.search]);
 
   // Fetch users
   const fetchUsers = async () => {
@@ -100,7 +110,7 @@ export const UserManagementPage = () => {
         setSelectedUserDetails(res.data.data);
       }
     } catch (err) {
-      console.error(err);
+      showToast('Failed to load user details', 'error');
     } finally {
       setDetailsLoading(false);
     }
@@ -135,8 +145,15 @@ export const UserManagementPage = () => {
 
     try {
       setFormLoading(true);
-      await adminApi.createUser(newUser);
+      await adminApi.createUser({
+        name: newUser.name.trim(),
+        email: newUser.email.trim(),
+        password: newUser.password,
+        address: newUser.address.trim() || null,
+        role: newUser.role
+      });
       setIsCreateOpen(false);
+      navigate('/admin/users', { replace: true });
       setNewUser({
         name: '',
         email: '',
@@ -144,11 +161,12 @@ export const UserManagementPage = () => {
         address: '',
         role: 'USER'
       });
-      setSuccessMessage('New user created successfully!');
-      setTimeout(() => setSuccessMessage(''), 4000);
+      showToast('New user account created successfully!', 'success');
       fetchUsers();
     } catch (err) {
-      setFormError(err.response?.data?.message || 'Failed to create user.');
+      const msg = err.response?.data?.message || 'Failed to create user.';
+      setFormError(msg);
+      showToast(msg, 'error');
     } finally {
       setFormLoading(false);
     }
@@ -159,11 +177,11 @@ export const UserManagementPage = () => {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900 tracking-tight flex items-center gap-2.5">
+          <h1 className="text-2xl sm:text-3xl font-extrabold text-[#172033] tracking-tight flex items-center gap-2.5">
             <Users className="w-6 h-6 text-indigo-600" />
             <span>User Management</span>
           </h1>
-          <p className="text-sm text-slate-500 mt-1">
+          <p className="text-sm text-[#64748B] mt-1">
             Browse, filter, inspect details, and create system users
           </p>
         </div>
@@ -180,15 +198,8 @@ export const UserManagementPage = () => {
         </button>
       </div>
 
-      {successMessage && (
-        <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-sm flex items-center gap-2">
-          <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-          <span>{successMessage}</span>
-        </div>
-      )}
-
       {/* Filters & Search Toolbar */}
-      <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm flex flex-col md:flex-row gap-3 items-center justify-between">
+      <div className="bg-white p-4 rounded-2xl border border-[#E2E8F0] shadow-card flex flex-col md:flex-row gap-3 items-center justify-between">
         <form onSubmit={handleSearchSubmit} className="relative w-full md:w-96">
           <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
             <Search className="w-4 h-4" />
@@ -198,7 +209,7 @@ export const UserManagementPage = () => {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search by name, email, or address..."
-            className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white text-slate-800"
+            className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-[#E2E8F0] rounded-xl text-xs sm:text-sm text-[#172033] focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 focus:bg-white"
           />
         </form>
 
@@ -211,7 +222,7 @@ export const UserManagementPage = () => {
                 setRoleFilter(e.target.value);
                 setPagination((p) => ({ ...p, page: 1 }));
               }}
-              className="py-2 px-3 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              className="py-2 px-3 bg-slate-50 border border-[#E2E8F0] rounded-xl text-xs sm:text-sm text-[#172033] focus:outline-none focus:ring-2 focus:ring-indigo-500"
             >
               <option value="">All Roles</option>
               <option value="USER">Normal User</option>
@@ -223,46 +234,46 @@ export const UserManagementPage = () => {
       </div>
 
       {/* Users Sortable Table */}
-      <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden">
+      <div className="bg-white rounded-2xl border border-[#E2E8F0] shadow-card overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm text-slate-600">
-            <thead className="bg-slate-50 text-xs font-semibold text-slate-500 uppercase tracking-wider border-b border-slate-200">
+          <table className="w-full text-left text-sm text-[#64748B]">
+            <thead className="bg-slate-50 text-xs font-semibold text-[#64748B] uppercase tracking-wider border-b border-[#E2E8F0]">
               <tr>
                 <th
                   onClick={() => handleSort('name')}
-                  className="px-6 py-3.5 cursor-pointer hover:text-slate-800 select-none"
+                  className="px-6 py-3.5 cursor-pointer hover:text-[#172033] select-none"
                 >
                   <div className="flex items-center gap-1.5">
                     <span>Name</span>
-                    <ArrowUpDown className="w-3.5 h-3.5 text-slate-400" />
+                    <ArrowUpDown className="w-3.5 h-3.5" />
                   </div>
                 </th>
                 <th
                   onClick={() => handleSort('email')}
-                  className="px-6 py-3.5 cursor-pointer hover:text-slate-800 select-none"
+                  className="px-6 py-3.5 cursor-pointer hover:text-[#172033] select-none"
                 >
                   <div className="flex items-center gap-1.5">
                     <span>Email</span>
-                    <ArrowUpDown className="w-3.5 h-3.5 text-slate-400" />
+                    <ArrowUpDown className="w-3.5 h-3.5" />
                   </div>
                 </th>
                 <th className="px-6 py-3.5">Address</th>
                 <th
                   onClick={() => handleSort('role')}
-                  className="px-6 py-3.5 cursor-pointer hover:text-slate-800 select-none"
+                  className="px-6 py-3.5 cursor-pointer hover:text-[#172033] select-none"
                 >
                   <div className="flex items-center gap-1.5">
                     <span>Role</span>
-                    <ArrowUpDown className="w-3.5 h-3.5 text-slate-400" />
+                    <ArrowUpDown className="w-3.5 h-3.5" />
                   </div>
                 </th>
                 <th
                   onClick={() => handleSort('created_at')}
-                  className="px-6 py-3.5 cursor-pointer hover:text-slate-800 select-none"
+                  className="px-6 py-3.5 cursor-pointer hover:text-[#172033] select-none"
                 >
                   <div className="flex items-center gap-1.5">
                     <span>Joined Date</span>
-                    <ArrowUpDown className="w-3.5 h-3.5 text-slate-400" />
+                    <ArrowUpDown className="w-3.5 h-3.5" />
                   </div>
                 </th>
                 <th className="px-6 py-3.5 text-right">Actions</th>
@@ -277,26 +288,26 @@ export const UserManagementPage = () => {
                 </tr>
               ) : users.length === 0 ? (
                 <tr>
-                  <td colSpan="6" className="px-6 py-12 text-center text-slate-400">
+                  <td colSpan="6" className="px-6 py-12 text-center text-[#64748B]">
                     No users found matching your criteria.
                   </td>
                 </tr>
               ) : (
                 users.map((u) => (
                   <tr key={u.id} className="hover:bg-slate-50/70 transition-colors">
-                    <td className="px-6 py-4 font-semibold text-slate-800">
+                    <td className="px-6 py-4 font-semibold text-[#172033]">
                       {u.name}
                     </td>
-                    <td className="px-6 py-4 text-slate-600">
+                    <td className="px-6 py-4 text-[#64748B]">
                       {u.email}
                     </td>
-                    <td className="px-6 py-4 text-slate-500 max-w-xs truncate" title={u.address}>
+                    <td className="px-6 py-4 text-[#64748B] max-w-xs truncate" title={u.address}>
                       {u.address || <span className="text-slate-400 italic">None provided</span>}
                     </td>
                     <td className="px-6 py-4">
                       <RoleBadge role={u.role} />
                     </td>
-                    <td className="px-6 py-4 text-slate-500 text-xs">
+                    <td className="px-6 py-4 text-[#64748B] text-xs">
                       {new Date(u.created_at).toLocaleDateString()}
                     </td>
                     <td className="px-6 py-4 text-right">
@@ -316,26 +327,26 @@ export const UserManagementPage = () => {
         </div>
 
         {/* Pagination controls */}
-        <div className="px-6 py-3.5 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
+        <div className="px-6 py-3.5 border-t border-[#E2E8F0] flex items-center justify-between text-xs text-[#64748B]">
           <div>
-            Showing <span className="font-semibold text-slate-700">{users.length}</span> of{' '}
-            <span className="font-semibold text-slate-700">{pagination.total}</span> users
+            Showing <span className="font-semibold text-[#172033]">{users.length}</span> of{' '}
+            <span className="font-semibold text-[#172033]">{pagination.total}</span> users
           </div>
           <div className="flex items-center gap-2">
             <button
               disabled={pagination.page <= 1}
               onClick={() => setPagination((p) => ({ ...p, page: p.page - 1 }))}
-              className="p-1.5 rounded-lg border border-slate-200 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-50 text-slate-600"
+              className="p-1.5 rounded-lg border border-[#E2E8F0] disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-50 text-[#64748B]"
             >
               <ChevronLeft className="w-4 h-4" />
             </button>
-            <span className="font-medium">
+            <span className="font-medium text-[#172033]">
               Page {pagination.page} of {pagination.totalPages || 1}
             </span>
             <button
               disabled={pagination.page >= pagination.totalPages}
               onClick={() => setPagination((p) => ({ ...p, page: p.page + 1 }))}
-              className="p-1.5 rounded-lg border border-slate-200 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-50 text-slate-600"
+              className="p-1.5 rounded-lg border border-[#E2E8F0] disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-50 text-[#64748B]"
             >
               <ChevronRight className="w-4 h-4" />
             </button>
@@ -346,12 +357,15 @@ export const UserManagementPage = () => {
       {/* Create User Modal */}
       <Modal
         isOpen={isCreateOpen}
-        onClose={() => setIsCreateOpen(false)}
-        title="Create New User"
+        onClose={() => {
+          setIsCreateOpen(false);
+          navigate('/admin/users', { replace: true });
+        }}
+        title="Create New User Account"
       >
         {formError && (
-          <div className="mb-4 p-3 rounded-xl bg-rose-50 border border-rose-200 flex items-start gap-2.5 text-rose-700 text-xs">
-            <AlertCircle className="w-4 h-4 shrink-0 text-rose-500 mt-0.5" />
+          <div className="mb-4 p-3 rounded-xl bg-red-50 border border-red-200 flex items-start gap-2.5 text-red-700 text-xs">
+            <AlertCircle className="w-4 h-4 shrink-0 text-red-500 mt-0.5" />
             <span>{formError}</span>
           </div>
         )}
@@ -359,10 +373,10 @@ export const UserManagementPage = () => {
         <form onSubmit={handleCreateUser} className="space-y-3.5">
           <div>
             <div className="flex justify-between items-center mb-1">
-              <label className="block text-xs font-semibold text-slate-700">
+              <label className="block text-xs font-semibold text-[#172033]">
                 Full Name
               </label>
-              <span className={`text-[11px] ${newUser.name.length > 0 && !isNameValid ? 'text-rose-500' : 'text-slate-400'}`}>
+              <span className={`text-[11px] ${newUser.name.length > 0 && !isNameValid ? 'text-red-500 font-semibold' : 'text-[#64748B]'}`}>
                 {newUser.name.length}/60 (req: 20-60 chars)
               </span>
             </div>
@@ -371,13 +385,13 @@ export const UserManagementPage = () => {
               required
               value={newUser.name}
               onChange={(e) => setNewUser({ ...newUser, name: e.target.value })}
-              placeholder="e.g. Richard Franklin Henderson Owner"
-              className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white text-slate-800"
+              placeholder="e.g. Richard Franklin Henderson User"
+              className="w-full px-3 py-2 bg-slate-50 border border-[#E2E8F0] rounded-xl text-sm text-[#172033] focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 focus:bg-white"
             />
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-slate-700 mb-1">
+            <label className="block text-xs font-semibold text-[#172033] mb-1">
               Email Address
             </label>
             <input
@@ -386,17 +400,17 @@ export const UserManagementPage = () => {
               value={newUser.email}
               onChange={(e) => setNewUser({ ...newUser, email: e.target.value })}
               placeholder="user@example.com"
-              className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white text-slate-800"
+              className="w-full px-3 py-2 bg-slate-50 border border-[#E2E8F0] rounded-xl text-sm text-[#172033] focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 focus:bg-white"
             />
           </div>
 
           <div>
             <div className="flex justify-between items-center mb-1">
-              <label className="block text-xs font-semibold text-slate-700">
+              <label className="block text-xs font-semibold text-[#172033]">
                 Password
               </label>
-              <span className="text-[11px] text-slate-400">
-                8–16 chars, uppercase & special char
+              <span className="text-[11px] text-[#64748B]">
+                8–16 chars, 1 uppercase, 1 special
               </span>
             </div>
             <input
@@ -405,31 +419,18 @@ export const UserManagementPage = () => {
               value={newUser.password}
               onChange={(e) => setNewUser({ ...newUser, password: e.target.value })}
               placeholder="••••••••"
-              className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white text-slate-800"
+              className="w-full px-3 py-2 bg-slate-50 border border-[#E2E8F0] rounded-xl text-sm text-[#172033] focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 focus:bg-white"
             />
-            {newUser.password.length > 0 && (
-              <div className="mt-1.5 grid grid-cols-3 gap-1 text-[10px]">
-                <span className={isPassLengthValid ? 'text-emerald-600' : 'text-slate-400'}>
-                  ✓ 8-16 chars
-                </span>
-                <span className={hasUppercase ? 'text-emerald-600' : 'text-slate-400'}>
-                  ✓ 1 Uppercase
-                </span>
-                <span className={hasSpecialChar ? 'text-emerald-600' : 'text-slate-400'}>
-                  ✓ 1 Special
-                </span>
-              </div>
-            )}
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-slate-700 mb-1">
-              Role
+            <label className="block text-xs font-semibold text-[#172033] mb-1">
+              Assigned Role
             </label>
             <select
               value={newUser.role}
               onChange={(e) => setNewUser({ ...newUser, role: e.target.value })}
-              className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white text-slate-800"
+              className="w-full px-3 py-2 bg-slate-50 border border-[#E2E8F0] rounded-xl text-sm text-[#172033] focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 focus:bg-white"
             >
               <option value="USER">Normal User</option>
               <option value="STORE_OWNER">Store Owner</option>
@@ -439,36 +440,39 @@ export const UserManagementPage = () => {
 
           <div>
             <div className="flex justify-between items-center mb-1">
-              <label className="block text-xs font-semibold text-slate-700">
+              <label className="block text-xs font-semibold text-[#172033]">
                 Address (Optional)
               </label>
-              <span className="text-[11px] text-slate-400">
-                {newUser.address.length}/400
+              <span className="text-[11px] text-[#64748B]">
+                {newUser.address.length}/400 max
               </span>
             </div>
             <textarea
               rows="2"
               value={newUser.address}
               onChange={(e) => setNewUser({ ...newUser, address: e.target.value })}
-              placeholder="Physical street address..."
-              className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white text-slate-800"
+              placeholder="Street, City, State..."
+              className="w-full px-3 py-2 bg-slate-50 border border-[#E2E8F0] rounded-xl text-sm text-[#172033] focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 focus:bg-white"
             />
           </div>
 
-          <div className="pt-3 flex justify-end gap-2">
+          <div className="pt-3 flex justify-end gap-2 border-t border-[#E2E8F0]">
             <button
               type="button"
-              onClick={() => setIsCreateOpen(false)}
-              className="px-4 py-2 border border-slate-200 text-slate-600 rounded-xl text-xs font-semibold hover:bg-slate-50"
+              onClick={() => {
+                setIsCreateOpen(false);
+                navigate('/admin/users', { replace: true });
+              }}
+              className="px-4 py-2 border border-[#E2E8F0] text-[#64748B] rounded-xl text-xs font-semibold hover:bg-slate-50"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={formLoading}
-              className="px-4 py-2 bg-indigo-600 text-white rounded-xl text-xs font-semibold hover:bg-indigo-700 disabled:opacity-60"
+              className="px-4 py-2 bg-indigo-600 text-white rounded-xl text-xs font-semibold hover:bg-indigo-700 disabled:opacity-60 shadow-sm shadow-indigo-200"
             >
-              {formLoading ? 'Creating...' : 'Create User'}
+              {formLoading ? 'Creating User...' : 'Create User'}
             </button>
           </div>
         </form>
@@ -478,60 +482,58 @@ export const UserManagementPage = () => {
       <Modal
         isOpen={isDetailsOpen}
         onClose={() => setIsDetailsOpen(false)}
-        title="User Details & Activity"
+        title="User Details & Activity Log"
         maxWidth="max-w-2xl"
       >
         {detailsLoading ? (
           <LoadingSpinner text="Fetching user details..." />
         ) : selectedUserDetails?.user ? (
           <div className="space-y-5">
-            {/* User summary card */}
-            <div className="p-4 rounded-xl bg-slate-50 border border-slate-200/80">
+            <div className="p-4 rounded-xl bg-slate-50 border border-[#E2E8F0]">
               <div className="flex items-center justify-between">
                 <div>
-                  <h4 className="text-base font-bold text-slate-900">
+                  <h4 className="text-base font-bold text-[#172033]">
                     {selectedUserDetails.user.name}
                   </h4>
-                  <p className="text-xs text-slate-500 mt-0.5">
+                  <p className="text-xs text-[#64748B] mt-0.5">
                     {selectedUserDetails.user.email}
                   </p>
                 </div>
                 <RoleBadge role={selectedUserDetails.user.role} />
               </div>
 
-              <div className="mt-3 pt-3 border-t border-slate-200/60 grid grid-cols-2 gap-2 text-xs">
+              <div className="mt-3 pt-3 border-t border-[#E2E8F0] grid grid-cols-2 gap-2 text-xs">
                 <div>
-                  <span className="text-slate-400 block">Address:</span>
-                  <span className="text-slate-700 font-medium">
+                  <span className="text-[#64748B] block">Address:</span>
+                  <span className="text-[#172033] font-medium">
                     {selectedUserDetails.user.address || 'None provided'}
                   </span>
                 </div>
                 <div>
-                  <span className="text-slate-400 block">Member Since:</span>
-                  <span className="text-slate-700 font-medium">
+                  <span className="text-[#64748B] block">Member Since:</span>
+                  <span className="text-[#172033] font-medium">
                     {new Date(selectedUserDetails.user.created_at).toLocaleDateString()}
                   </span>
                 </div>
               </div>
             </div>
 
-            {/* Ratings Activity: If Normal User */}
             {selectedUserDetails.user.role === 'USER' && (
               <div>
-                <h5 className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-2.5">
+                <h5 className="text-xs font-bold uppercase tracking-wider text-[#64748B] mb-2.5">
                   Submitted Ratings ({selectedUserDetails.submittedRatings?.length || 0})
                 </h5>
                 {selectedUserDetails.submittedRatings?.length > 0 ? (
-                  <div className="max-h-60 overflow-y-auto divide-y divide-slate-100 border border-slate-100 rounded-xl">
+                  <div className="max-h-60 overflow-y-auto divide-y divide-slate-100 border border-[#E2E8F0] rounded-xl">
                     {selectedUserDetails.submittedRatings.map((r) => (
                       <div key={r.id} className="p-3 flex items-center justify-between text-xs">
                         <div>
-                          <p className="font-semibold text-slate-800">{r.store_name}</p>
-                          <p className="text-slate-400 text-[11px] truncate max-w-xs">{r.store_address}</p>
+                          <p className="font-semibold text-[#172033]">{r.store_name}</p>
+                          <p className="text-[#64748B] text-[11px] truncate max-w-xs">{r.store_address}</p>
                         </div>
                         <div className="flex flex-col items-end">
-                          <StarRating rating={r.rating} size="sm" />
-                          <span className="text-[10px] text-slate-400 mt-1">
+                          <StarRating rating={r.rating} size="sm" showScore={true} />
+                          <span className="text-[10px] text-[#64748B] mt-1">
                             {new Date(r.created_at).toLocaleDateString()}
                           </span>
                         </div>
@@ -539,52 +541,8 @@ export const UserManagementPage = () => {
                     ))}
                   </div>
                 ) : (
-                  <p className="text-xs text-slate-400 italic">No ratings submitted yet.</p>
+                  <p className="text-xs text-[#64748B] italic">No ratings submitted yet.</p>
                 )}
-              </div>
-            )}
-
-            {/* If Store Owner: Owned Stores and Ratings Received */}
-            {selectedUserDetails.user.role === 'STORE_OWNER' && (
-              <div className="space-y-4">
-                <div>
-                  <h5 className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-2">
-                    Owned Stores ({selectedUserDetails.ownedStores?.length || 0})
-                  </h5>
-                  {selectedUserDetails.ownedStores?.map((s) => (
-                    <div key={s.id} className="p-3 rounded-xl bg-indigo-50/50 border border-indigo-100 mb-2 flex items-center justify-between text-xs">
-                      <div>
-                        <p className="font-bold text-slate-800">{s.name}</p>
-                        <p className="text-slate-500">{s.address}</p>
-                      </div>
-                      <div className="text-right">
-                        <span className="text-sm font-bold text-indigo-700">{s.average_rating} ★</span>
-                        <p className="text-[10px] text-slate-400">{s.total_ratings} reviews</p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-
-                <div>
-                  <h5 className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-2">
-                    Customer Ratings Received ({selectedUserDetails.ratingsReceived?.length || 0})
-                  </h5>
-                  {selectedUserDetails.ratingsReceived?.length > 0 ? (
-                    <div className="max-h-48 overflow-y-auto divide-y divide-slate-100 border border-slate-100 rounded-xl text-xs">
-                      {selectedUserDetails.ratingsReceived.map((r) => (
-                        <div key={r.id} className="p-2.5 flex items-center justify-between">
-                          <div>
-                            <span className="font-semibold text-slate-700">{r.user_name}</span>
-                            <span className="text-slate-400 text-[11px] block">{r.user_email}</span>
-                          </div>
-                          <StarRating rating={r.rating} size="sm" />
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="text-xs text-slate-400 italic">No ratings received yet.</p>
-                  )}
-                </div>
               </div>
             )}
           </div>

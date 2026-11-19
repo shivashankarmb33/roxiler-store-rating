@@ -1,39 +1,65 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { ratingsApi } from '../../services/api';
+import { useToast } from '../../context/ToastContext';
+import { storesApi, ratingsApi } from '../../services/api';
 import { StatCard } from '../../components/common/StatCard';
 import { StarRating } from '../../components/common/StarRating';
 import { Modal } from '../../components/common/Modal';
-import { LoadingSpinner } from '../../components/common/LoadingSpinner';
+import { ConfirmDialog } from '../../components/common/ConfirmDialog';
+import { LoadingSpinner, TableSkeleton } from '../../components/common/LoadingSpinner';
 import {
   Compass,
   Star,
+  Search,
+  MapPin,
+  Mail,
   CheckCircle2,
-  Clock,
-  ArrowRight,
+  KeyRound,
+  LogOut,
   Sparkles,
-  Edit3
+  ArrowRight,
+  Filter,
+  Check
 } from 'lucide-react';
 
 export const UserDashboard = () => {
-  const { user } = useAuth();
-  const [ratings, setRatings] = useState([]);
+  const { user, logout } = useAuth();
+  const { showToast } = useToast();
+
+  const [stores, setStores] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState('');
+  const [sortBy, setSortBy] = useState('name');
+  const [sortOrder, setSortOrder] = useState('ASC');
 
-  // Edit Rating Modal State
-  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-  const [activeRating, setActiveRating] = useState(null);
-  const [newScore, setNewScore] = useState(5);
-  const [editLoading, setEditLoading] = useState(false);
-  const [feedback, setFeedback] = useState('');
+  // Stats
+  const [myRatingsCount, setMyRatingsCount] = useState(0);
 
-  const fetchMyRatings = async () => {
+  // Rating Modal State
+  const [isRatingModalOpen, setIsRatingModalOpen] = useState(false);
+  const [activeStore, setActiveStore] = useState(null);
+  const [selectedScore, setSelectedScore] = useState(5);
+  const [submittingRating, setSubmittingRating] = useState(false);
+
+  // Logout confirm
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+
+  // Fetch stores
+  const fetchStores = async () => {
     try {
       setLoading(true);
-      const res = await ratingsApi.getMyRatings();
+      const res = await storesApi.getStores({
+        search,
+        sortBy,
+        sortOrder,
+        limit: 100 // show all available discovery stores
+      });
+
       if (res.data.success) {
-        setRatings(res.data.data.ratings);
+        setStores(res.data.data.stores);
+        const rated = res.data.data.stores.filter((s) => s.user_rating !== null).length;
+        setMyRatingsCount(rated);
       }
     } catch (err) {
       console.error(err);
@@ -43,225 +69,313 @@ export const UserDashboard = () => {
   };
 
   useEffect(() => {
-    fetchMyRatings();
-  }, []);
+    fetchStores();
+  }, [sortBy, sortOrder]);
 
-  const totalRated = ratings.length;
-  const avgGiven =
-    totalRated > 0
-      ? (ratings.reduce((acc, r) => acc + r.rating, 0) / totalRated).toFixed(1)
-      : '0.0';
-
-  const handleOpenEdit = (ratingItem) => {
-    setActiveRating(ratingItem);
-    setNewScore(ratingItem.rating);
-    setIsEditModalOpen(true);
+  const handleSearchSubmit = (e) => {
+    e.preventDefault();
+    fetchStores();
   };
 
-  const handleUpdateRating = async (e) => {
+  const handleOpenRating = (store) => {
+    setActiveStore(store);
+    setSelectedScore(store.user_rating || 5);
+    setIsRatingModalOpen(true);
+  };
+
+  const handleSubmitRating = async (e) => {
     e.preventDefault();
-    if (!activeRating) return;
+    if (!activeStore) return;
 
     try {
-      setEditLoading(true);
-      const res = await ratingsApi.modifyRating(activeRating.store_id, { rating: newScore });
+      setSubmittingRating(true);
+      const res = await ratingsApi.submitRating({
+        store_id: activeStore.id,
+        rating: selectedScore
+      });
+
       if (res.data.success) {
-        setFeedback('Rating updated successfully!');
-        setIsEditModalOpen(false);
-        fetchMyRatings();
-        setTimeout(() => setFeedback(''), 4000);
+        showToast(
+          activeStore.user_rating
+            ? `Your rating for "${activeStore.name}" was updated to ${selectedScore} stars!`
+            : `Thank you! Submitted ${selectedScore} stars for "${activeStore.name}".`,
+          'success'
+        );
+
+        // Update local state optimistically
+        setStores((prev) =>
+          prev.map((s) =>
+            s.id === activeStore.id
+              ? {
+                  ...s,
+                  user_rating: selectedScore,
+                  average_rating: res.data.data.average_rating,
+                  total_ratings: res.data.data.total_ratings
+                }
+              : s
+          )
+        );
+
+        setIsRatingModalOpen(false);
       }
     } catch (err) {
-      console.error(err);
+      const msg = err.response?.data?.message || 'Failed to save rating.';
+      showToast(msg, 'error');
     } finally {
-      setEditLoading(false);
+      setSubmittingRating(false);
     }
   };
 
-  if (loading) {
-    return <LoadingSpinner text="Loading user dashboard..." />;
-  }
+  const handleLogout = () => {
+    setShowLogoutConfirm(false);
+    showToast('Logged out successfully', 'success');
+    logout();
+  };
 
   return (
     <div className="space-y-8">
-      {/* Welcome Banner */}
-      <div className="bg-gradient-to-r from-indigo-900 via-indigo-800 to-indigo-700 rounded-3xl p-6 sm:p-8 text-white shadow-lg shadow-indigo-900/20 flex flex-col md:flex-row md:items-center justify-between gap-6">
+      {/* Welcome Heading Banner */}
+      <div className="bg-white rounded-2xl p-6 sm:p-8 border border-[#E2E8F0] shadow-card flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div>
-          <div className="flex items-center gap-2 text-indigo-200 text-xs font-semibold uppercase tracking-wider mb-2">
-            <Sparkles className="w-4 h-4 text-amber-300" />
-            <span>Customer Portal</span>
+          <div className="flex items-center gap-2 text-indigo-600 text-xs font-semibold uppercase tracking-wider mb-1">
+            <Sparkles className="w-4 h-4 text-amber-400" />
+            <span>Store Discovery Portal</span>
           </div>
-          <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight">
-            Welcome, {user?.name?.split(' ')[0]}!
+          <h1 className="text-2xl sm:text-3xl font-extrabold text-[#172033] tracking-tight">
+            Welcome back, {user?.name?.split(' ')[0]}!
           </h1>
-          <p className="text-indigo-100 text-sm mt-1.5 max-w-xl">
-            Discover verified stores in your area, submit authentic customer reviews, and help others find the best services.
+          <p className="text-sm text-[#64748B] mt-1 max-w-xl">
+            Browse registered stores, view overall ratings, and submit or update your reviews.
           </p>
         </div>
 
-        <Link
-          to="/stores"
-          className="inline-flex items-center gap-2 px-5 py-3 rounded-2xl bg-white text-indigo-700 font-bold text-sm shadow-md hover:bg-indigo-50 transition-all self-start md:self-auto shrink-0"
-        >
-          <Compass className="w-4 h-4" />
-          <span>Browse Stores</span>
-        </Link>
+        {/* Quick Action Buttons */}
+        <div className="flex items-center gap-2.5 self-start md:self-auto shrink-0">
+          <Link
+            to="/change-password"
+            className="inline-flex items-center gap-2 px-3.5 py-2.5 rounded-xl text-xs font-semibold text-[#172033] bg-slate-50 hover:bg-slate-100 border border-[#E2E8F0] transition-colors"
+          >
+            <KeyRound className="w-4 h-4 text-slate-500" />
+            <span>Change Password</span>
+          </Link>
+
+          <button
+            onClick={() => setShowLogoutConfirm(true)}
+            className="inline-flex items-center gap-2 px-3.5 py-2.5 rounded-xl text-xs font-semibold text-red-600 bg-red-50 hover:bg-red-100 border border-red-200 transition-colors"
+          >
+            <LogOut className="w-4 h-4" />
+            <span>Logout</span>
+          </button>
+        </div>
       </div>
 
-      {feedback && (
-        <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-sm flex items-center gap-2">
-          <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-          <span>{feedback}</span>
-        </div>
-      )}
-
-      {/* Summary Cards */}
+      {/* Summary Stats */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
         <StatCard
-          title="Stores Rated"
-          value={totalRated}
-          subtitle="Your submitted store ratings"
+          title="Available Stores"
+          value={stores.length}
+          subtitle="Registered in the store directory"
+          icon={Compass}
+          color="indigo"
+        />
+        <StatCard
+          title="My Submitted Ratings"
+          value={myRatingsCount}
+          subtitle="Stores you have reviewed"
           icon={CheckCircle2}
           color="emerald"
         />
         <StatCard
-          title="Avg Rating Given"
-          value={`${avgGiven} / 5`}
-          subtitle="Your typical rating score"
+          title="Pending Reviews"
+          value={Math.max(0, stores.length - myRatingsCount)}
+          subtitle="Stores awaiting your feedback"
           icon={Star}
           color="amber"
         />
-        <StatCard
-          title="Recent Activity"
-          value={totalRated > 0 ? 'Active' : 'No Reviews'}
-          subtitle={totalRated > 0 ? `Latest: ${new Date(ratings[0]?.updated_at).toLocaleDateString()}` : 'Start rating stores'}
-          icon={Clock}
-          color="indigo"
-        />
       </div>
 
-      {/* My Submitted Reviews List */}
-      <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm p-6">
-        <div className="flex items-center justify-between mb-4">
-          <div>
-            <h2 className="text-base font-bold text-slate-900">
-              Your Store Reviews & Ratings
-            </h2>
-            <p className="text-xs text-slate-500 mt-0.5">
-              Review history and modifications
-            </p>
-          </div>
+      {/* Search & Sort Discovery Toolbar */}
+      <div className="bg-white p-4 rounded-2xl border border-[#E2E8F0] shadow-card flex flex-col sm:flex-row items-center justify-between gap-3">
+        <form onSubmit={handleSearchSubmit} className="relative w-full sm:w-96">
+          <Search className="w-4 h-4 absolute left-3 top-3 text-slate-400" />
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search stores by name or address..."
+            className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-[#E2E8F0] rounded-xl text-xs sm:text-sm text-[#172033] focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 focus:bg-white transition-all"
+          />
+        </form>
 
-          <Link
-            to="/stores"
-            className="text-xs font-semibold text-indigo-600 hover:text-indigo-700 flex items-center gap-1"
+        <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+          <span className="text-xs text-[#64748B] font-medium">Sort by:</span>
+          <select
+            value={`${sortBy}-${sortOrder}`}
+            onChange={(e) => {
+              const [col, ord] = e.target.value.split('-');
+              setSortBy(col);
+              setSortOrder(ord);
+            }}
+            className="py-1.5 px-3 bg-slate-50 border border-[#E2E8F0] rounded-xl text-xs text-[#172033] focus:outline-none focus:ring-2 focus:ring-indigo-500"
           >
-            <span>Rate more stores</span>
-            <ArrowRight className="w-3.5 h-3.5" />
-          </Link>
+            <option value="name-ASC">Name (A–Z)</option>
+            <option value="name-DESC">Name (Z–A)</option>
+            <option value="rating-DESC">Highest Rated</option>
+            <option value="rating-ASC">Lowest Rated</option>
+          </select>
         </div>
+      </div>
 
-        {ratings.length === 0 ? (
-          <div className="py-12 text-center">
-            <Star className="w-10 h-10 text-slate-300 mx-auto mb-3" />
-            <h3 className="text-sm font-semibold text-slate-700">No ratings submitted yet</h3>
-            <p className="text-xs text-slate-400 mt-1 max-w-sm mx-auto">
-              You haven't reviewed any stores yet. Browse available stores to submit your first rating!
-            </p>
-            <Link
-              to="/stores"
-              className="mt-4 inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-xl text-xs font-semibold hover:bg-indigo-700 transition-colors"
+      {/* Store Listing Cards */}
+      {loading ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <div key={i} className="animate-pulse bg-white p-6 rounded-2xl border border-slate-100 h-56" />
+          ))}
+        </div>
+      ) : stores.length === 0 ? (
+        <div className="bg-white p-12 text-center rounded-2xl border border-[#E2E8F0] text-[#64748B]">
+          <Compass className="w-10 h-10 text-slate-300 mx-auto mb-3" />
+          <h3 className="text-sm font-semibold text-[#172033]">No stores found</h3>
+          <p className="text-xs text-[#64748B] mt-1">
+            Try adjusting your search query to discover stores.
+          </p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+          {stores.map((store) => (
+            <div
+              key={store.id}
+              className="bg-white rounded-2xl p-5 border border-[#E2E8F0] shadow-card hover:shadow-popover transition-shadow flex flex-col justify-between"
             >
-              <Compass className="w-4 h-4" />
-              <span>Browse All Stores</span>
-            </Link>
-          </div>
-        ) : (
-          <div className="divide-y divide-slate-100">
-            {ratings.map((item) => (
-              <div key={item.id} className="py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                <div>
-                  <h4 className="font-bold text-slate-900 text-sm">
-                    {item.store_name}
-                  </h4>
-                  <p className="text-xs text-slate-500 mt-0.5">{item.store_address}</p>
-                  <div className="mt-1 flex items-center gap-3 text-[11px] text-slate-400">
-                    <span>Store avg: {item.store_average_rating} ★ ({item.store_total_ratings} reviews)</span>
-                    <span>·</span>
-                    <span>Reviewed: {new Date(item.updated_at).toLocaleDateString()}</span>
+              <div>
+                <div className="flex items-start justify-between gap-2">
+                  <h3 className="font-bold text-[#172033] text-base leading-snug">
+                    {store.name}
+                  </h3>
+                  <div className="shrink-0 flex items-center gap-1 bg-amber-50 px-2 py-0.5 rounded-lg border border-amber-200">
+                    <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-500" />
+                    <span className="text-xs font-bold text-amber-800">
+                      {store.average_rating ? Number(store.average_rating).toFixed(1) : '0.0'}
+                    </span>
                   </div>
                 </div>
 
-                <div className="flex items-center gap-4 self-end sm:self-auto">
-                  <div className="flex flex-col items-end">
-                    <span className="text-[11px] text-slate-400 mb-0.5">Your Rating</span>
-                    <StarRating rating={item.rating} showScore={true} size="sm" />
+                <div className="mt-3 space-y-1.5 text-xs text-[#64748B]">
+                  <div className="flex items-start gap-2">
+                    <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0 mt-0.5" />
+                    <span className="line-clamp-2">{store.address}</span>
                   </div>
+                  <div className="flex items-center gap-2">
+                    <Mail className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                    <span className="truncate">{store.email}</span>
+                  </div>
+                </div>
 
-                  <button
-                    onClick={() => handleOpenEdit(item)}
-                    className="p-2 rounded-xl text-indigo-600 hover:bg-indigo-50 border border-indigo-100 transition-colors flex items-center gap-1.5 text-xs font-semibold"
-                    title="Modify rating"
-                  >
-                    <Edit3 className="w-3.5 h-3.5" />
-                    <span>Edit</span>
-                  </button>
+                <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between">
+                  <span className="text-[11px] text-[#64748B]">Overall Score</span>
+                  <StarRating
+                    rating={store.average_rating}
+                    totalReviews={store.total_ratings}
+                    size="sm"
+                    showScore={true}
+                  />
                 </div>
               </div>
-            ))}
-          </div>
-        )}
-      </div>
 
-      {/* Edit Rating Modal */}
+              {/* User's Submitted Rating & Action */}
+              <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between">
+                <div>
+                  {store.user_rating ? (
+                    <div className="flex items-center gap-1.5 text-xs text-indigo-700 font-semibold bg-indigo-50 px-2.5 py-1 rounded-lg">
+                      <Check className="w-3.5 h-3.5 text-indigo-600" />
+                      <span>Your rating: {store.user_rating} ★</span>
+                    </div>
+                  ) : (
+                    <span className="text-xs text-slate-400 italic">Not rated yet</span>
+                  )}
+                </div>
+
+                <button
+                  onClick={() => handleOpenRating(store)}
+                  className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-all shadow-subtle ${
+                    store.user_rating
+                      ? 'bg-indigo-50 hover:bg-indigo-100 text-indigo-600 border border-indigo-200'
+                      : 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-indigo-200'
+                  }`}
+                >
+                  {store.user_rating ? 'Update Rating' : 'Rate Store'}
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Interactive 5-Star Rating Modal */}
       <Modal
-        isOpen={isEditModalOpen}
-        onClose={() => setIsEditModalOpen(false)}
-        title="Modify Store Rating"
+        isOpen={isRatingModalOpen}
+        onClose={() => setIsRatingModalOpen(false)}
+        title={activeStore?.user_rating ? 'Modify Submitted Rating' : 'Submit Five-Star Rating'}
       >
-        {activeRating && (
-          <form onSubmit={handleUpdateRating} className="space-y-4">
-            <div className="p-4 rounded-xl bg-slate-50 border border-slate-200/80">
-              <h4 className="font-bold text-slate-800 text-sm">{activeRating.store_name}</h4>
-              <p className="text-xs text-slate-500 mt-1">{activeRating.store_address}</p>
+        {activeStore && (
+          <form onSubmit={handleSubmitRating} className="space-y-4">
+            <div className="p-4 rounded-xl bg-slate-50 border border-[#E2E8F0]">
+              <h4 className="font-bold text-[#172033] text-base">{activeStore.name}</h4>
+              <p className="text-xs text-[#64748B] mt-1">{activeStore.address}</p>
+              <div className="mt-2.5 flex items-center gap-2 text-xs text-[#64748B]">
+                <span>Overall average rating:</span>
+                <StarRating rating={activeStore.average_rating} showScore={true} size="sm" />
+              </div>
             </div>
 
             <div className="text-center py-4">
-              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">
-                Update your rating score (1 to 5 Stars)
+              <p className="text-xs font-semibold text-[#64748B] uppercase tracking-wider mb-3">
+                Click a star to select your rating (1 to 5 Stars)
               </p>
               <div className="flex justify-center">
                 <StarRating
-                  rating={newScore}
+                  rating={selectedScore}
                   interactive={true}
-                  onChange={(val) => setNewScore(val)}
+                  onChange={(val) => setSelectedScore(val)}
                   size="xl"
                 />
               </div>
-              <p className="text-sm font-bold text-indigo-600 mt-2">
-                {newScore} out of 5 Stars
+              <p className="text-base font-bold text-indigo-600 mt-3">
+                {selectedScore} out of 5 Stars
               </p>
             </div>
 
-            <div className="pt-2 flex justify-end gap-2 border-t border-slate-100">
+            <div className="pt-3 flex justify-end gap-2 border-t border-[#E2E8F0]">
               <button
                 type="button"
-                onClick={() => setIsEditModalOpen(false)}
-                className="px-4 py-2 border border-slate-200 text-slate-600 rounded-xl text-xs font-semibold hover:bg-slate-50"
+                onClick={() => setIsRatingModalOpen(false)}
+                className="px-4 py-2 border border-[#E2E8F0] text-[#64748B] rounded-xl text-xs font-semibold hover:bg-slate-50"
               >
                 Cancel
               </button>
               <button
                 type="submit"
-                disabled={editLoading}
+                disabled={submittingRating}
                 className="px-4 py-2 bg-indigo-600 text-white rounded-xl text-xs font-semibold hover:bg-indigo-700 disabled:opacity-60 shadow-sm shadow-indigo-200"
               >
-                {editLoading ? 'Updating...' : 'Save New Rating'}
+                {submittingRating ? 'Saving...' : activeStore.user_rating ? 'Update Rating' : 'Submit Rating'}
               </button>
             </div>
           </form>
         )}
       </Modal>
+
+      {/* Logout Confirmation Dialog */}
+      <ConfirmDialog
+        isOpen={showLogoutConfirm}
+        onClose={() => setShowLogoutConfirm(false)}
+        onConfirm={handleLogout}
+        title="Confirm Sign Out"
+        message="Are you sure you want to log out of your Roxiler account?"
+        confirmText="Log Out"
+        isDanger={true}
+      />
     </div>
   );
 };

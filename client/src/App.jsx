@@ -1,6 +1,7 @@
 import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { ToastProvider } from './context/ToastContext';
 import { ProtectedRoute } from './components/routing/ProtectedRoute';
 import { Layout } from './components/layout/Layout';
 
@@ -38,96 +39,98 @@ const RootRedirect = () => {
 
 export const App = () => {
   return (
-    <AuthProvider>
-      <BrowserRouter>
-        <Routes>
-          {/* Public Auth Routes */}
-          <Route path="/login" element={<LoginPage />} />
-          <Route path="/register" element={<RegisterPage />} />
+    <ToastProvider>
+      <AuthProvider>
+        <BrowserRouter>
+          <Routes>
+            {/* Public Auth Routes */}
+            <Route path="/login" element={<LoginPage />} />
+            <Route path="/register" element={<RegisterPage />} />
 
-          {/* Protected Routes inside App Shell Layout */}
-          <Route
-            element={
-              <ProtectedRoute>
-                <Layout />
-              </ProtectedRoute>
-            }
-          >
-            {/* Root Route */}
-            <Route path="/" element={<RootRedirect />} />
+            {/* Protected Routes inside App Shell Layout */}
+            <Route
+              element={
+                <ProtectedRoute>
+                  <Layout />
+                </ProtectedRoute>
+              }
+            >
+              {/* Root Route */}
+              <Route path="/" element={<RootRedirect />} />
 
-            {/* Common Authenticated Routes */}
-            <Route path="/change-password" element={<ChangePasswordPage />} />
-            <Route path="/stores" element={<StoreListingPage />} />
+              {/* Common Authenticated Routes */}
+              <Route path="/change-password" element={<ChangePasswordPage />} />
+              <Route path="/stores" element={<StoreListingPage />} />
 
-            {/* Admin Exclusive Routes */}
-            <Route
-              path="/admin/dashboard"
-              element={
-                <ProtectedRoute allowedRoles={['ADMIN']}>
-                  <AdminDashboard />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/admin/users"
-              element={
-                <ProtectedRoute allowedRoles={['ADMIN']}>
-                  <UserManagementPage />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/admin/stores"
-              element={
-                <ProtectedRoute allowedRoles={['ADMIN']}>
-                  <StoreManagementPage />
-                </ProtectedRoute>
-              }
-            />
+              {/* Admin Exclusive Routes */}
+              <Route
+                path="/admin/dashboard"
+                element={
+                  <ProtectedRoute allowedRoles={['ADMIN']}>
+                    <AdminDashboard />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/admin/users"
+                element={
+                  <ProtectedRoute allowedRoles={['ADMIN']}>
+                    <UserManagementPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/admin/stores"
+                element={
+                  <ProtectedRoute allowedRoles={['ADMIN']}>
+                    <StoreManagementPage />
+                  </ProtectedRoute>
+                }
+              />
 
-            {/* Normal User Routes */}
-            <Route
-              path="/user/dashboard"
-              element={
-                <ProtectedRoute allowedRoles={['USER']}>
-                  <UserDashboard />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/user/my-ratings"
-              element={
-                <ProtectedRoute allowedRoles={['USER']}>
-                  <MyRatingsPage />
-                </ProtectedRoute>
-              }
-            />
+              {/* Normal User Routes */}
+              <Route
+                path="/user/dashboard"
+                element={
+                  <ProtectedRoute allowedRoles={['USER']}>
+                    <UserDashboard />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/user/my-ratings"
+                element={
+                  <ProtectedRoute allowedRoles={['USER']}>
+                    <MyRatingsPage />
+                  </ProtectedRoute>
+                }
+              />
 
-            {/* Store Owner Routes */}
-            <Route
-              path="/store-owner/dashboard"
-              element={
-                <ProtectedRoute allowedRoles={['STORE_OWNER']}>
-                  <StoreOwnerDashboard />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/store-owner/ratings"
-              element={
-                <ProtectedRoute allowedRoles={['STORE_OWNER']}>
-                  <StoreOwnerRatingsPage />
-                </ProtectedRoute>
-              }
-            />
-          </Route>
+              {/* Store Owner Routes */}
+              <Route
+                path="/store-owner/dashboard"
+                element={
+                  <ProtectedRoute allowedRoles={['STORE_OWNER']}>
+                    <StoreOwnerDashboard />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/store-owner/ratings"
+                element={
+                  <ProtectedRoute allowedRoles={['STORE_OWNER']}>
+                    <StoreOwnerRatingsPage />
+                  </ProtectedRoute>
+                }
+              />
+            </Route>
 
-          {/* Catch-all route */}
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
-      </BrowserRouter>
-    </AuthProvider>
+            {/* Catch-all route */}
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+        </BrowserRouter>
+      </AuthProvider>
+    </ToastProvider>
   );
 };
 
