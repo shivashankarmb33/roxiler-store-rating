@@ -1,0 +1,23 @@
+{
+  "name": "roxiler-store-rating",
+  "version": "1.0.0",
+  "description": "Roxiler Store Rating Management System - Full Stack Application",
+  "scripts": {
+    "server": "cd server && npm run dev",
+    "client": "cd client && npm run dev",
+    "seed": "cd server && npm run seed",
+    "test:server": "cd server && npm test",
+    "build:client": "cd client && npm run build"
+  },
+  "keywords": [
+    "roxiler",
+    "react",
+    "nodejs",
+    "express",
+    "mysql",
+    "rating-system",
+    "full-stack"
+  ],
+  "author": "",
+  "license": "ISC"
+}
