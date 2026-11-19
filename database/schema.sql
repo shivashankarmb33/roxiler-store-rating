@@ -1,27 +1,16 @@
--- Roxiler Store Rating Management System
--- Database Schema Definition
+
 
 CREATE DATABASE IF NOT EXISTS roxiler_store_rating
 CHARACTER SET utf8mb4
 COLLATE utf8mb4_unicode_ci;
 
 USE roxiler_store_rating;
-
--- Drop tables in reverse order of dependencies if recreating
--- DROP TABLE IF EXISTS ratings;
--- DROP TABLE IF EXISTS stores;
--- DROP TABLE IF EXISTS users;
--- DROP TABLE IF EXISTS roles;
-
--- 1. Roles table
 CREATE TABLE IF NOT EXISTS roles (
   id INT AUTO_INCREMENT PRIMARY KEY,
   name VARCHAR(50) NOT NULL UNIQUE,
   description VARCHAR(255) NULL,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
--- 2. Users table
 CREATE TABLE IF NOT EXISTS users (
   id INT AUTO_INCREMENT PRIMARY KEY,
   name VARCHAR(60) NOT NULL,
@@ -51,8 +40,6 @@ CREATE TABLE IF NOT EXISTS stores (
   INDEX idx_stores_owner_id (owner_id),
   INDEX idx_stores_email (email)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
--- 4. Ratings table
 CREATE TABLE IF NOT EXISTS ratings (
   id INT AUTO_INCREMENT PRIMARY KEY,
   user_id INT NOT NULL,
